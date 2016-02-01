@@ -1,0 +1,83 @@
+import java.util.*;
+public class RealSelection {
+	//Do not use global variables, you may create new class instead or other ways to avoid this
+    public static double maxValue = 0;
+    public static HashMap<String, ScheduleRequest> res = new HashMap<String, ScheduleRequest>();
+	private static HashMap<String, Double> multiplier = new HashMap<String, Double>();
+	
+    public static void selection(int time, List<String> locations){
+    	//a hashmap (time, (location, ScheduleRequest))
+        HashMap<Integer, HashMap<String, ArrayList<ScheduleRequest>>> map = new HashMap<Integer, HashMap<String, ArrayList<ScheduleRequest>>>();
+        //a hashmap (time,(location, ContentMaxScore))
+        HashMap<Integer, HashMap<String, Integer>> contentmax = new HashMap<Integer, HashMap<String, Integer>>();
+		Iterator<ScheduleRequest> iter = ReadIn();   //put all input into a HashMap
+		while (iter.hasNext()) {   // traverse the SR in order 
+			ScheduleRequest sr = iter.next();
+        	for (int i = sr.start; i <= sr.end; i++) {
+        		if (!map.containsKey(i)) {
+        			map.put(i, new HashMap<String, ArrayList<ScheduleRequest>>());
+        			contentmax.put(i, new HashMap<String, Integer>());
+        		}
+        		if (!map.get(i).containsKey(sr.LocationId)) {
+        			map.get(i).put(sr.LocationId, new ArrayList<ScheduleRequest>());
+        			contentmax.get(i).put(sr.LocationId, sr.score);
+        		}else{
+    		   		if (contentmax.get(i).get(sr.LocationId) < sr.score){
+            			contentmax.get(i).put(sr.LocationId, sr.score);
+            		}
+        		}
+				map.get(i).get(sr.LocationId).add(sr);
+        	}
+        }
+        if (!map.containsKey(time)) {
+        	System.out.println("There is no Seletion at this time!");
+        	return;
+        }
+        HashMap<String, ArrayList<ScheduleRequest>> locationContents = map.get(time);
+        HashMap<String, ScheduleRequest> curRes = new HashMap<String, ScheduleRequest>();
+        HashSet<String> visited = new HashSet<String>();	//a set to check if this content has been selected
+        double[] maxarray = alphabeta(locations,contentmax.get(time), multiplier);	//Alpha–beta pruning (if we don't consider about advertisement conflicts)
+        dfs(0, locations, 0.0, visited, curRes, locationContents, multiplier, maxarray);
+    }  
+    public static double[] alphabeta(List<String> locations, HashMap<String, Integer> contentmax, HashMap<String, Double> multiplier){
+    	int size = locations.size();
+    	double[] maxvalarray = new double[size+1];
+    	maxvalarray[size] = 0;
+    	for (int i = size-1; i >= 0 ;i--){
+    		if (contentmax.containsKey(locations.get(i))){
+    			maxvalarray[i] = maxvalarray[i+1] + contentmax.get(locations.get(i)) * multiplier.get(locations.get(i));
+    		}
+        }
+		return maxvalarray;	
+    }
+    public static void dfs(int index, List<String> locations, double sum, HashSet<String> visited, HashMap<String, ScheduleRequest> curRes, 
+    		HashMap<String, ArrayList<ScheduleRequest>> locationContents, HashMap<String, Double> multiplier, double[] maxarray){
+    	//if the sum of current sum and the other locations' maxsum is smaller than current maxvalue, we can prune it.
+    	if (sum + maxarray[index] < maxValue){
+    		return;
+    	}
+        if (index >= locations.size()){
+            if (sum > maxValue){
+                maxValue = sum;
+                res.clear();
+                res.putAll(curRes);
+            }
+            return;
+        }
+        dfs(index + 1, locations, sum, visited, curRes, locationContents, multiplier, maxarray);	//Condition: Don't chose
+        String location = locations.get(index);
+        if (!locationContents.containsKey(location)) {
+        	return;
+        } 
+    	for (ScheduleRequest sr: locationContents.get(location)) {
+    		String name = sr.ContentId;
+    		if (!visited.contains(name)) {
+    			visited.add(name);
+    			curRes.put(sr.LocationId, sr);
+    			dfs(index + 1, locations, sum + sr.score * multiplier.get(sr.LocationId), visited, curRes, locationContents, multiplier, maxarray);
+    			visited.remove(name);
+    			curRes.remove(sr.LocationId);
+    		}
+    	}
+    }
+}
